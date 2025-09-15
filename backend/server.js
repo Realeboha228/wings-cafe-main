@@ -50,7 +50,7 @@ const server = http.createServer((req, res) => {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(newProduct));
             } catch (error) {
-                res.writeHead(400);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON' }));
             }
         });
@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
                 const productIndex = db.products.findIndex(p => p.id === id);
                 
                 if (productIndex === -1) {
-                    res.writeHead(404);
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Product not found' }));
                     return;
                 }
@@ -75,7 +75,7 @@ const server = http.createServer((req, res) => {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(db.products[productIndex]));
             } catch (error) {
-                res.writeHead(400);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON' }));
             }
         });
@@ -86,7 +86,7 @@ const server = http.createServer((req, res) => {
         const productIndex = db.products.findIndex(p => p.id === id);
         
         if (productIndex === -1) {
-            res.writeHead(404);
+            res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Product not found' }));
             return;
         }
@@ -112,7 +112,7 @@ const server = http.createServer((req, res) => {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(newTransaction));
             } catch (error) {
-                res.writeHead(400);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON' }));
             }
         });
@@ -133,13 +133,18 @@ const server = http.createServer((req, res) => {
             lowStockItems
         }));
     }
+    // Fix for favicon.ico requests
+    else if (req.url === '/favicon.ico') {
+        res.writeHead(204);
+        res.end();
+    }
     else {
-        res.writeHead(404);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Route not found' }));
     }
 });
 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log('Available routes:');
