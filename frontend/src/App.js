@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 // In wings/src/App.js
-const API_BASE = "http://localhost:5001";
+const API_BASE = process.env.REACT_APP_API_BASE;
 
 function App() {
   const [view, setView] = useState('dashboard');
