@@ -1,158 +1,106 @@
-const http = require('http');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
 
-const server = http.createServer((req, res) => {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
-        return;
-    }
+const dbPath = path.join(__dirname, 'database.json');
 
-    const dbPath = path.join(__dirname, 'database.json');
+const readDatabase = () => {
+  try {
+    const data = fs.readFileSync(dbPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return { products: [], transactions: [] };
+  }
+};
 
-    const readDatabase = () => {
-        try {
-            const data = fs.readFileSync(dbPath, 'utf8');
-            return JSON.parse(data);
-        } catch (error) {
-            return { products: [], transactions: [] };
-        }
-    };
+const writeDatabase = (data) => {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+};
 
-    const writeDatabase = (data) => {
-        fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-    };
-
-    // Routes
-    if (req.method === 'GET' && req.url === '/api/products') {
-        const db = readDatabase();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(db.products));
-    }
-    else if (req.method === 'POST' && req.url === '/api/products') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const db = readDatabase();
-                const newProduct = {
-                    id: Date.now(),
-                    ...JSON.parse(body)
-                };
-                db.products.push(newProduct);
-                writeDatabase(db);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(newProduct));
-            } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid JSON' }));
-            }
-        });
-    }
-    else if (req.method === 'PUT' && req.url.startsWith('/api/products/')) {
-        const id = parseInt(req.url.split('/').pop());
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const db = readDatabase();
-                const productIndex = db.products.findIndex(p => p.id === id);
-                
-                if (productIndex === -1) {
-                    res.writeHead(404, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Product not found' }));
-                    return;
-                }
-                
-                db.products[productIndex] = { ...db.products[productIndex], ...JSON.parse(body) };
-                writeDatabase(db);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(db.products[productIndex]));
-            } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid JSON' }));
-            }
-        });
-    }
-    else if (req.method === 'DELETE' && req.url.startsWith('/api/products/')) {
-        const id = parseInt(req.url.split('/').pop());
-        const db = readDatabase();
-        const productIndex = db.products.findIndex(p => p.id === id);
-        
-        if (productIndex === -1) {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Product not found' }));
-            return;
-        }
-        
-        db.products.splice(productIndex, 1);
-        writeDatabase(db);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ message: 'Product deleted' }));
-    }
-    else if (req.method === 'POST' && req.url === '/api/transactions') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const db = readDatabase();
-                const newTransaction = {
-                    id: Date.now(),
-                    ...JSON.parse(body),
-                    date: new Date().toISOString()
-                };
-                db.transactions.push(newTransaction);
-                writeDatabase(db);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(newTransaction));
-            } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid JSON' }));
-            }
-        });
-    }
-    else if (req.method === 'GET' && req.url === '/api/transactions') {
-        const db = readDatabase();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(db.transactions));
-    }
-    else if (req.method === 'GET' && req.url === '/api/dashboard') {
-        const db = readDatabase();
-        const totalProducts = db.products.length;
-        const lowStockItems = db.products.filter(p => p.quantity < 5).length;
-        
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            totalProducts,
-            lowStockItems
-        }));
-    }
-    // Fix for favicon.ico requests
-    else if (req.url === '/favicon.ico') {
-        res.writeHead(204);
-        res.end();
-    }
-    else {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Route not found' }));
-    }
+// Routes
+app.get('/api/products', (req, res) => {
+  const db = readDatabase();
+  res.json(db.products);
 });
 
+app.post('/api/products', (req, res) => {
+  try {
+    const db = readDatabase();
+    const newProduct = { id: Date.now(), ...req.body };
+    db.products.push(newProduct);
+    writeDatabase(db);
+    res.json(newProduct);
+  } catch {
+    res.status(400).json({ error: 'Invalid JSON' });
+  }
+});
+
+app.put('/api/products/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const db = readDatabase();
+  const productIndex = db.products.findIndex(p => p.id === id);
+
+  if (productIndex === -1) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+
+  db.products[productIndex] = { ...db.products[productIndex], ...req.body };
+  writeDatabase(db);
+  res.json(db.products[productIndex]);
+});
+
+app.delete('/api/products/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const db = readDatabase();
+  const productIndex = db.products.findIndex(p => p.id === id);
+
+  if (productIndex === -1) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+
+  db.products.splice(productIndex, 1);
+  writeDatabase(db);
+  res.json({ message: 'Product deleted' });
+});
+
+app.post('/api/transactions', (req, res) => {
+  try {
+    const db = readDatabase();
+    const newTransaction = {
+      id: Date.now(),
+      ...req.body,
+      date: new Date().toISOString()
+    };
+    db.transactions.push(newTransaction);
+    writeDatabase(db);
+    res.json(newTransaction);
+  } catch {
+    res.status(400).json({ error: 'Invalid JSON' });
+  }
+});
+
+app.get('/api/transactions', (req, res) => {
+  const db = readDatabase();
+  res.json(db.transactions);
+});
+
+app.get('/api/dashboard', (req, res) => {
+  const db = readDatabase();
+  const totalProducts = db.products.length;
+  const lowStockItems = db.products.filter(p => p.quantity < 5).length;
+  res.json({ totalProducts, lowStockItems });
+});
+
+// Catch favicon.ico
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Start server
 const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log('Available routes:');
-    console.log('  GET    /api/products');
-    console.log('  POST   /api/products');
-    console.log('  PUT    /api/products/:id');
-    console.log('  DELETE /api/products/:id');
-    console.log('  GET    /api/transactions');
-    console.log('  POST   /api/transactions');
-    console.log('  GET    /api/dashboard');
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });
